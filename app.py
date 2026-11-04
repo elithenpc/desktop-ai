@@ -300,7 +300,7 @@ def agent_loop():
         with state_lock: running=False
         emit("status","Stopped" if stop_event.is_set() else "Ready")
 
-HTML = """<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Desktop AI</title>
+HTML = r"""<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Desktop AI</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#101114;color:#eee}*{box-sizing:border-box}body{margin:0;display:flex;justify-content:center;min-height:100vh}.app{width:min(900px,100%);display:flex;flex-direction:column;height:100vh;padding:22px}.top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #303139;padding-bottom:16px}.brand{font-size:21px;font-weight:700}.status{font-size:12px;color:#a5a5b0}.feed{flex:1;overflow:auto;padding:22px 0}.msg{white-space:pre-wrap;line-height:1.5;padding:13px 16px;border-radius:13px;margin:10px 0;max-width:85%;overflow-wrap:anywhere}.user{background:#29354b;margin-left:auto}.assistant{background:#202126}.error{background:#4a2226;color:#ffd9dc}.action,.statusline{font-size:12px;color:#a7a7b3;padding:5px 10px}.composer{display:flex;gap:10px;border-top:1px solid #303139;padding-top:16px}.composer textarea{flex:1;resize:none;min-height:54px;max-height:160px;background:#202126;color:white;border:1px solid #41424c;border-radius:12px;padding:15px;font:inherit}.btn{border:0;border-radius:11px;padding:0 18px;font-weight:650;cursor:pointer;background:#e8e8ed;color:#17171a}.stop{background:#672b31;color:white}.hint{font-size:11px;color:#81818c;margin-top:9px}
 .msg.assistant{white-space:normal}
@@ -318,7 +318,7 @@ HTML = """<!doctype html><html><head><meta charset=utf-8><meta name=viewport con
 .msg.assistant th,.msg.assistant td{border:1px solid #444854;padding:7px 9px;text-align:left}
 .msg.assistant th{background:#292c35}
 .msg.assistant hr{border:0;border-top:1px solid #484b56;margin:14px 0}
-</style></head><body><main class=app><header class=top><div class=brand>Desktop AI</div><div id=status class=status>Connecting…</div></header><section id=feed class=feed><div class="msg assistant">Ready. Tell me what you'd like me to do on your desktop.</div></section><form id=form class=composer><textarea id=input placeholder="Give Desktop AI a task. You can add instructions while it works…" autofocus></textarea><button class=btn type=submit>Send</button><button class="btn stop" id=stop type=button>Stop</button></form><div class=hint>Runs locally on this computer. Keep this page open while the agent works.</div></main>
+</style></head><body><main class=app><header class=top><div class=brand>Desktop AI</div><div id=status class=status>Connecting…</div></header><section id=feed class=feed><div class="msg assistant">Ready. Tell me what you'd like me to do on your desktop.</div></section><form id=form class=composer><textarea id=input placeholder="Give Desktop AI a task. You can add instructions while it works…" autofocus></textarea><button class=btn id=send type=button>Send</button><button class="btn stop" id=stop type=button>Stop</button></form><div class=hint>Runs locally on this computer. Keep this page open while the agent works.</div></main>
 <script>
 const feed=document.getElementById('feed'),statusEl=document.getElementById('status');let last=0;
 function appendInline(parent,text){
@@ -408,9 +408,10 @@ function add(type,data){
  feed.scrollTop=feed.scrollHeight;
 }
 async function poll(){try{const r=await fetch('/events?after='+last);const j=await r.json();for(const e of j.events){last=e.id;add(e.type,e.data)}}catch(e){}setTimeout(poll,350)}poll();
-document.getElementById('form').addEventListener('submit',async e=>{e.preventDefault();const t=document.getElementById('input');const message=t.value.trim();if(!message)return;const send=document.querySelector('#form button[type="submit"]');send.disabled=true;send.textContent='Sending…';try{const r=await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:message})});const result=await r.json().catch(()=>({}));if(!r.ok)throw new Error(result.error||'Server returned HTTP '+r.status);t.value='';t.focus()}catch(err){add('error','Could not send message: '+err.message);statusEl.textContent='Connection error'}finally{send.disabled=false;send.textContent='Send'}});
+async function sendMessage(){const t=document.getElementById('input');const message=t.value.trim();if(!message)return;const send=document.getElementById('send');send.disabled=true;send.textContent='Sending…';try{const r=await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:message})});const result=await r.json().catch(()=>({}));if(!r.ok)throw new Error(result.error||'Server returned HTTP '+r.status);t.value='';t.focus()}catch(err){add('error','Could not send message: '+err.message);statusEl.textContent='Connection error'}finally{send.disabled=false;send.textContent='Send'}}
+document.getElementById('send').addEventListener('click',sendMessage);
 document.getElementById('stop').onclick=()=>fetch('/stop',{method:'POST'});
-document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('form').requestSubmit()}});
+document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});
 </script></body></html>"""
 
 @APP.get("/")
