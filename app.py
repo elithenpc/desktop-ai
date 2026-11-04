@@ -22,6 +22,9 @@ stop_event = threading.Event()
 worker = None
 running = False
 cursor = None
+conversation = []
+latest_screen_size = (1440, 900)
+latest_image_size = (1440, 900)
 
 SYSTEM = """You are Desktop AI, an autonomous desktop assistant operating the user's Linux desktop.
 You can see the current screen through the screenshot tool. Work toward the user's current task,
@@ -53,11 +56,14 @@ def emit(kind, data):
         if len(events)>500: del events[:100]
 
 def screen_image():
+    global latest_screen_size, latest_image_size
     with mss.mss() as sct:
         mon=sct.monitors[1]
         shot=sct.grab(mon)
         img=Image.frombytes("RGB", shot.size, shot.rgb)
         img.thumbnail((1440, 900))
+        latest_screen_size=shot.size
+        latest_image_size=img.size
         buf=BytesIO(); img.save(buf, format="JPEG", quality=75)
         return base64.b64encode(buf.getvalue()).decode(), img.size
 
@@ -67,10 +73,12 @@ def tool_call(name, args):
         data,size=screen_image()
         return {"image":data,"size":size}
     if cursor is None: return "Cursor controller is unavailable."
+    scale_x=latest_screen_size[0]/max(1,latest_image_size[0])
+    scale_y=latest_screen_size[1]/max(1,latest_image_size[1])
     if name=="move_cursor":
-        cursor.move(int(args["x"]),int(args["y"])); return "Cursor moved."
+        cursor.move(round(int(args["x"])*scale_x),round(int(args["y"])*scale_y)); return "Cursor moved."
     if name=="click":
-        cursor.click(int(args["x"]),int(args["y"]),args.get("button","left")); return "Clicked."
+        cursor.click(round(int(args["x"])*scale_x),round(int(args["y"])*scale_y),args.get("button","left")); return "Clicked."
     if name=="type_text":
         text=args.get("text","")
         if len(text)>4000: return "Text too long; split it into smaller pieces."
@@ -78,7 +86,7 @@ def tool_call(name, args):
     if name=="press_key":
         cursor.press_key(args["key"]); return "Key pressed."
     if name=="scroll":
-        cursor.scroll(int(args["x"]),int(args["y"]),int(args["amount"])); return "Scrolled."
+        cursor.scroll(round(int(args["x"])*scale_x),round(int(args["y"])*scale_y),int(args["amount"])); return "Scrolled."
     if name=="wait":
         time.sleep(max(0,min(float(args["seconds"]),8))); return "Wait complete."
     if name=="task_finished":
@@ -105,9 +113,9 @@ def add_user_instruction(text):
             worker.start()
 
 def agent_loop():
-    global running
-    history=[{"role":"system","content":SYSTEM}]
-    history.extend(messages[-20:])
+    global running, conversation
+    if not conversation: conversation=[{"role":"system","content":SYSTEM}]
+    history=conversation
     # New messages are consumed at every model/tool boundary, including while the model is thinking.
     try:
         steps=0
@@ -118,7 +126,9 @@ def agent_loop():
                 history.append({"role":"user","content":instruction})
             if len(history)==1:
                 time.sleep(.1); continue
-            emit("status","Thinking")
+            emit("status","Observing screen and thinking")
+            shot,size=screen_image()
+            history.append({"role":"user","content":[{"type":"text","text":"Current desktop view (scaled to at most 1440x900; coordinates refer to this image)."},{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,"+shot}}]})
             answer=nim_request(history)
             history.append(answer)
             content=answer.get("content")
