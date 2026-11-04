@@ -14,7 +14,7 @@ if [[ ! -f "$HOME/.config/desktop-ai/env" ]]; then
 # Paste your NVIDIA NIM API key below.
 export NVIDIA_NIM_API_KEY=""
 # Choose a vision-capable model available to your NVIDIA NIM account.
-export NVIDIA_NIM_MODEL="nvidia/llama-3.2-90b-vision-instruct"
+export NVIDIA_NIM_MODEL="nvidia/nemotron-3.5-super-vl-120b-a12b"
 EOF
   chmod 600 "$HOME/.config/desktop-ai/env"
 fi
