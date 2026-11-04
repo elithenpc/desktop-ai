@@ -353,7 +353,7 @@ function renderMarkdown(container,source){
   }
   const heading=line.match(/^\s{0,3}(#{1,6})\s+(.+)$/);
   if(heading){const h=document.createElement('h'+heading[1].length);appendInline(h,heading[2].replace(/\s+#+\s*$/,''));container.append(h);i++;continue}
-  if(/^\s{0,3}([-*_])\s*\1\s*\1\s*$/.test(line)){container.append(document.createElement('hr'));i++;continue}
+  if(/^\s*(?:-{3,}|_{3,}|\*{3,})\s*$/.test(line)){container.append(document.createElement('hr'));i++;continue}
   if(/^\s*>/.test(line)){
    const quote=document.createElement('blockquote');
    while(i<lines.length&&/^\s*>/.test(lines[i])){const p=document.createElement('p');appendInline(p,lines[i++].replace(/^\s*>\s?/,''));quote.append(p)}
@@ -408,7 +408,7 @@ function add(type,data){
  feed.scrollTop=feed.scrollHeight;
 }
 async function poll(){try{const r=await fetch('/events?after='+last);const j=await r.json();for(const e of j.events){last=e.id;add(e.type,e.data)}}catch(e){}setTimeout(poll,350)}poll();
-document.getElementById('form').addEventListener('submit',async e=>{e.preventDefault();const t=document.getElementById('input');if(!t.value.trim())return;await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t.value})});t.value='';t.focus()});
+document.getElementById('form').addEventListener('submit',async e=>{e.preventDefault();const t=document.getElementById('input');const message=t.value.trim();if(!message)return;const send=document.querySelector('#form button[type="submit"]');send.disabled=true;send.textContent='Sending…';try{const r=await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:message})});const result=await r.json().catch(()=>({}));if(!r.ok)throw new Error(result.error||'Server returned HTTP '+r.status);t.value='';t.focus()}catch(err){add('error','Could not send message: '+err.message);statusEl.textContent='Connection error'}finally{send.disabled=false;send.textContent='Send'}});
 document.getElementById('stop').onclick=()=>fetch('/stop',{method:'POST'});
 document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('form').requestSubmit()}});
 </script></body></html>"""
