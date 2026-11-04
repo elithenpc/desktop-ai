@@ -18,6 +18,7 @@ export NVIDIA_NIM_MODEL="nvidia/llama-3.2-90b-vision-instruct"
 EOF
   chmod 600 "$HOME/.config/desktop-ai/env"
 fi
+mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/desktop-ai" <<EOF
 #!/usr/bin/env bash
 set -a
@@ -26,7 +27,6 @@ set +a
 cd "$HOME/desktop-ai"
 exec python3 app.py
 EOF
-mkdir -p "$HOME/.local/bin"
 chmod +x "$HOME/.local/bin/desktop-ai"
 echo
 echo "Installed. Add ~/.local/bin to PATH if needed."
