@@ -10,7 +10,7 @@ from xcursor import DesktopCursor
 
 APP = Flask(__name__)
 API_KEY = os.environ.get("NVIDIA_NIM_API_KEY", "")
-MODEL = os.environ.get("NVIDIA_NIM_MODEL", "nvidia/llama-3.2-90b-vision-instruct")
+MODEL = os.environ.get("NVIDIA_NIM_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
 NIM_URL = os.environ.get("NVIDIA_NIM_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
 MAX_STEPS = int(os.environ.get("DESKTOP_AI_MAX_STEPS", "60"))
 
