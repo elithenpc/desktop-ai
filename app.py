@@ -106,9 +106,9 @@ def tool_call(name, args):
         return "Cursor teleported." if mode=="teleport" else "Cursor moved smoothly."
     if name=="terminal_command":
         command=args.get("command","")
-        if not isinstance(command,str) or not command.strip() or len(command)>2000 or "\\n" in command or "\\r" in command:
+        if not isinstance(command,str) or not command.strip() or len(command)>2000 or "\n" in command or "\r" in command:
             return "Invalid terminal command. Provide one non-empty line of at most 2000 characters."
-        dangerous = re.compile(r"(^|[;&|]\\s*)(sudo\\s+)?(rm|rmdir|mkfs(?:\\.[a-z0-9]+)?|wipefs|dd|fdisk|parted|shutdown|reboot|poweroff|userdel|chpasswd|passwd|iptables|ufw)\\b|\\b(apt|apt-get)\\s+(remove|purge)\\b|\\b(flatpak|snap)\\s+remove\\b|\\b(systemctl)\\s+(disable|mask)\\b|\\b(chmod|chown)\\s+-R\\b|\\b(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(sh|bash)\\b", re.IGNORECASE)
+        dangerous = re.compile(r"(^|[;&|]\s*)(sudo\s+)?(rm|rmdir|mkfs(?:\.[a-z0-9]+)?|wipefs|dd|fdisk|parted|shutdown|reboot|poweroff|userdel|chpasswd|passwd|iptables|ufw)\b|\b(apt|apt-get)\s+(remove|purge)\b|\b(flatpak|snap)\s+remove\b|\b(systemctl)\s+(disable|mask)\b|\b(chmod|chown)\s+-R\b|\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(sh|bash)\b", re.IGNORECASE)
         if dangerous.search(command):
             return "Blocked: this command may delete data, change security settings, or make a destructive system change. Ask the user first and explain exactly what it will do."
         terminal=shutil.which("x-terminal-emulator")
