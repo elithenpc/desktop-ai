@@ -11,7 +11,7 @@ A local, browser-based desktop agent for Linux Mint X11 using NVIDIA NIM.
 - Runs locally; NVIDIA NIM receives screenshots and conversation content.
 
 ## Requirements
-Linux Mint Cinnamon on X11, Python 3, an NVIDIA NIM API key, and a vision-capable NIM model that supports tool calling and image input.
+Linux Mint Cinnamon on X11, Python 3, an NVIDIA NIM API key, and a vision-capable NIM model that supports tool calling and image input. The default is `nvidia/nemotron-3.5-super-vl-120b-a12b`.
 
 ## Install
 ```bash
