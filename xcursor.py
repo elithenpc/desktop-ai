@@ -62,17 +62,6 @@ class DesktopCursor:
         self.buttons = set()
         self.keys = set()
         self.x11.XSync(self.display, 0)
-
-    def move(self, x, y):
-        self.cancel_motion = False
-        axes = (ctypes.c_int * 2)(int(x), int(y))
-        if not self.xtst.XTestFakeDeviceMotionEvent(self.display, self.device, 0, 0, axes, 2, 0):
-            raise RuntimeError("XTest pointer movement failed.")
-        self.x11.XFlush(self.display)
-
-    def move_smooth(self, x, y):
-        import math
-        x=int(x); y=int(y)
         self.x11.XDefaultRootWindow.argtypes=[ctypes.c_void_p]
         self.x11.XDefaultRootWindow.restype=ctypes.c_ulong
         self.x11.XQueryPointer.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_uint)]
@@ -80,9 +69,24 @@ class DesktopCursor:
         root=self.x11.XDefaultRootWindow(self.display)
         rr=ctypes.c_ulong(); child=ctypes.c_ulong()
         rx=ctypes.c_int(); ry=ctypes.c_int(); wx=ctypes.c_int(); wy=ctypes.c_int(); mask=ctypes.c_uint()
-        if not self.x11.XQueryPointer(self.display,root,ctypes.byref(rr),ctypes.byref(child),ctypes.byref(rx),ctypes.byref(ry),ctypes.byref(wx),ctypes.byref(wy),ctypes.byref(mask)):
-            self.move(x,y); return
-        sx,sy=wx.value,wy.value
+        if self.x11.XQueryPointer(self.display,root,ctypes.byref(rr),ctypes.byref(child),ctypes.byref(rx),ctypes.byref(ry),ctypes.byref(wx),ctypes.byref(wy),ctypes.byref(mask)):
+            self.position=(wx.value,wy.value)
+        else:
+            self.position=(0,0)
+        self.move(*self.position)
+
+    def move(self, x, y):
+        self.cancel_motion = False
+        axes = (ctypes.c_int * 2)(int(x), int(y))
+        if not self.xtst.XTestFakeDeviceMotionEvent(self.display, self.device, 0, 0, axes, 2, 0):
+            raise RuntimeError("XTest pointer movement failed.")
+        self.position=(int(x),int(y))
+        self.x11.XFlush(self.display)
+
+    def move_smooth(self, x, y):
+        import math
+        x=int(x); y=int(y)
+        sx,sy=self.position
         distance=math.hypot(x-sx,y-sy)
         steps=max(3,min(36,int(distance/35)))
         duration=min(0.42,max(0.07,distance/2800.0))
