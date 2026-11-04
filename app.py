@@ -314,6 +314,9 @@ HTML = """<!doctype html><html><head><meta charset=utf-8><meta name=viewport con
 .msg.assistant code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#111319;border-radius:4px;padding:2px 5px;font-size:.92em}
 .msg.assistant pre code{padding:0;background:transparent}
 .msg.assistant a{color:#76adff;text-decoration:underline}
+.msg.assistant table{border-collapse:collapse;margin:10px 0;width:100%;font-size:.94em}
+.msg.assistant th,.msg.assistant td{border:1px solid #444854;padding:7px 9px;text-align:left}
+.msg.assistant th{background:#292c35}
 .msg.assistant hr{border:0;border-top:1px solid #484b56;margin:14px 0}
 </style></head><body><main class=app><header class=top><div class=brand>Desktop AI</div><div id=status class=status>Connecting…</div></header><section id=feed class=feed><div class="msg assistant">Ready. Tell me what you'd like me to do on your desktop.</div></section><form id=form class=composer><textarea id=input placeholder="Give Desktop AI a task. You can add instructions while it works…" autofocus></textarea><button class=btn type=submit>Send</button><button class="btn stop" id=stop type=button>Stop</button></form><div class=hint>Runs locally on this computer. Keep this page open while the agent works.</div></main>
 <script>
@@ -356,6 +359,20 @@ function renderMarkdown(container,source){
    while(i<lines.length&&/^\s*>/.test(lines[i])){const p=document.createElement('p');appendInline(p,lines[i++].replace(/^\s*>\s?/,''));quote.append(p)}
    container.append(quote);continue;
   }
+  const tableSep=i+1<lines.length&&/^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[i+1]);
+  if(line.includes('|')&&tableSep){
+   const cells=value=>value.trim().replace(/^\||\|$/g,'').split('|').map(x=>x.trim());
+   const headers=cells(line),table=document.createElement('table'),thead=document.createElement('thead'),tr=document.createElement('tr');
+   headers.forEach(value=>{const th=document.createElement('th');appendInline(th,value);tr.append(th)});
+   thead.append(tr);table.append(thead);i+=2;
+   const tbody=document.createElement('tbody');
+   while(i<lines.length&&lines[i].includes('|')&&lines[i].trim()){
+    const row=document.createElement('tr');
+    cells(lines[i]).forEach(value=>{const td=document.createElement('td');appendInline(td,value);row.append(td)});
+    tbody.append(row);i++;
+   }
+   table.append(tbody);container.append(table);continue;
+  }
   const listMatch=line.match(/^\s*(?:([-+*])|(\d+)\.)\s+(.+)$/);
   if(listMatch){
    const ordered=!!listMatch[2],list=document.createElement(ordered?'ol':'ul');
@@ -386,6 +403,7 @@ function add(type,data){
  }
  if(type==='status'){statusEl.textContent=data;return}
  if(type==='action'){el.className='action';el.textContent='Action: '+data.name;feed.append(el)}
+ else if(type==='assistant'){el.className='msg assistant';renderMarkdown(el,data);feed.append(el)}
  else{el.className='msg '+(type==='error'?'error':type);el.textContent=typeof data==='string'?data:JSON.stringify(data);feed.append(el)}
  feed.scrollTop=feed.scrollHeight;
 }
