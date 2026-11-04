@@ -8,6 +8,10 @@ A local, browser-based desktop agent for Linux Mint X11 using NVIDIA NIM.
 - Tool-calling agent loop.
 - Independent XInput master pointer (separate from the physical mouse).
 - Stop button releases held inputs.
+- Quick, smooth cursor movement by default, with instant teleport on explicit request.
+- Keyboard shortcuts and text entry through the independent virtual keyboard.
+- Fast application launching through installed Linux desktop entries, without arbitrary shell execution.
+- Familiar Linux Mint desktop context, including common applications and shortcuts.
 - Runs locally; NVIDIA NIM receives screenshots and conversation content.
 
 ## Requirements
