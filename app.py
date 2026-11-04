@@ -95,10 +95,37 @@ def tool_call(name, args):
 
 def nim_request(history):
     if not API_KEY: raise RuntimeError("Set NVIDIA_NIM_API_KEY before starting Desktop AI.")
-    payload={"model":MODEL,"messages":history,"tools":TOOLS,"tool_choice":"auto","temperature":0.2,"max_tokens":1200,"stream":False}
-    r=requests.post(NIM_URL,headers={"Authorization":"Bearer "+API_KEY,"Content-Type":"application/json"},json=payload,timeout=120)
+    payload={"model":MODEL,"messages":history,"tools":TOOLS,"tool_choice":"auto","temperature":0.2,"max_tokens":1200,"stream":True}
+    r=requests.post(NIM_URL,headers={"Authorization":"Bearer "+API_KEY,"Content-Type":"application/json","Accept":"text/event-stream"},json=payload,timeout=(15,180),stream=True)
     if not r.ok: raise RuntimeError(f"NVIDIA NIM HTTP {r.status_code}: {r.text[:1200]}")
-    return r.json()["choices"][0]["message"]
+    content_parts=[]
+    tool_calls={}
+    finish_reason=None
+    for raw in r.iter_lines(decode_unicode=True):
+        if not raw or not raw.startswith("data:"): continue
+        data=raw[5:].strip()
+        if data=="[DONE]": break
+        try: chunk=json.loads(data)
+        except json.JSONDecodeError: continue
+        choices=chunk.get("choices") or []
+        if not choices: continue
+        delta=choices[0].get("delta") or {}
+        if delta.get("content"):
+            part=delta["content"]
+            content_parts.append(part)
+            emit("assistant_delta",part)
+        for tc in delta.get("tool_calls") or []:
+            idx=tc.get("index",0)
+            entry=tool_calls.setdefault(idx,{"id":"","type":"function","function":{"name":"","arguments":""}})
+            if tc.get("id"): entry["id"]=tc["id"]
+            if tc.get("type"): entry["type"]=tc["type"]
+            fn_delta=tc.get("function") or {}
+            entry["function"]["name"]+=fn_delta.get("name","")
+            entry["function"]["arguments"]+=fn_delta.get("arguments","")
+        if choices[0].get("finish_reason"): finish_reason=choices[0]["finish_reason"]
+    message={"role":"assistant","content":"".join(content_parts) or None}
+    if tool_calls: message["tool_calls"]=[tool_calls[i] for i in sorted(tool_calls)]
+    return message
 
 def add_user_instruction(text):
     global running, worker
@@ -133,7 +160,7 @@ def agent_loop():
             history.append(answer)
             content=answer.get("content")
             if content:
-                emit("assistant",content)
+                emit("assistant_end",content)
             calls=answer.get("tool_calls") or []
             if not calls:
                 # A new user message may have arrived while the model was responding.
