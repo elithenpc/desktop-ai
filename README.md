@@ -29,4 +29,4 @@ Open http://127.0.0.1:8766.
 ## Important
 This is an early implementation. Verify that the model configured in NVIDIA NIM supports both image inputs and tool calling. Screen captures are sent to NVIDIA's API. The app binds only to localhost. Do not use it to enter credentials or perform sensitive actions. Stop the agent before using the computer normally.
 
-Current limitation: the agent sends a fresh screenshot when it calls `see_screen`; it does not continuously stream video frames to the model. Continuous observation is implemented as repeated screen inspection during the agent's action loop, not a constant video upload.
+Current limitation: the agent captures a fresh screenshot before each model decision. It does not upload a continuous video stream; screen observation happens in discrete snapshots throughout the task.
