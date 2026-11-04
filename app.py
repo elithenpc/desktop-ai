@@ -237,12 +237,22 @@ def agent_loop():
                     history.append({"role":"tool","tool_call_id":call["id"],"content":json.dumps(result) if isinstance(result,(dict,list)) else str(result)})
                 steps+=1
                 if fn=="task_finished":
-                    emit("assistant",args.get("summary","Task finished."))
+                    summary=args.get("summary","Task finished.")
+                    emit("assistant",summary)
                     emit("status","Task finished")
+                    # Keep a short textual handover, not every old screenshot and tool trace.
+                    conversation=[{"role":"system","content":SYSTEM},{"role":"assistant","content":"Previous task completed: "+summary}]
                     return
             if steps>=MAX_STEPS: emit("assistant","I reached the action limit for this run. Send another instruction to continue.")
     except Exception as e:
-        emit("error",str(e))
+        message=str(e)
+        if "NVIDIA NIM HTTP 422" in message:
+            # A rejected request must not poison every subsequent turn with the same
+            # long multimodal history. Start the next user request with clean context.
+            conversation=[{"role":"system","content":SYSTEM}]
+            emit("error","NVIDIA rejected this request (HTTP 422). This can be caused by content in the current screenshot or accumulated conversation context. Desktop AI has reset its conversation context. If it happens again on a fresh screen and a simple harmless instruction, check the model/API response details or try another vision-and-tool-capable NIM model. No desktop action was confirmed.")
+        else:
+            emit("error",message)
     finally:
         if cursor:
             try: cursor.release_all()
