@@ -186,6 +186,7 @@ def agent_loop():
                     history.append({"role":"tool","tool_call_id":call["id"],"content":json.dumps(result) if isinstance(result,(dict,list)) else str(result)})
                 steps+=1
                 if fn=="task_finished":
+                    emit("assistant",args.get("summary","Task finished."))
                     emit("status","Task finished")
                     return
             if steps>=MAX_STEPS: emit("assistant","I reached the action limit for this run. Send another instruction to continue.")
@@ -227,6 +228,9 @@ def message():
 @APP.post("/stop")
 def stop():
     stop_event.set()
+    while True:
+        try: pending.get_nowait()
+        except queue.Empty: break
     if cursor:
         try: cursor.release_all()
         except Exception: pass
