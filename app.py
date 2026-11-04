@@ -1,4 +1,4 @@
-import base64, json, os, queue, re, threading, time
+import atexit, base64, json, os, queue, re, threading, time
 from io import BytesIO
 
 import mss
@@ -243,4 +243,5 @@ if __name__=="__main__":
     if os.environ.get("XDG_SESSION_TYPE")!="x11" or not os.environ.get("DISPLAY"):
         raise SystemExit("Desktop AI currently requires an X11 session.")
     cursor=DesktopCursor()
+    atexit.register(cursor.close)
     APP.run(host="127.0.0.1",port=8766,threaded=True)
