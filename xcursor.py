@@ -74,6 +74,62 @@ class DesktopCursor:
         else:
             self.position=(0,0)
         self.move(*self.position)
+        self._install_blue_cursor()
+
+    def _install_blue_cursor(self):
+        # Give only the DesktopAI master pointer its own cursor image.
+        from PIL import Image, ImageDraw
+        self.xcursor = ctypes.CDLL("libXcursor.so.1")
+        class XcursorImage(ctypes.Structure):
+            _fields_ = [
+                ("version", ctypes.c_uint),
+                ("size", ctypes.c_uint),
+                ("width", ctypes.c_uint),
+                ("height", ctypes.c_uint),
+                ("xhot", ctypes.c_uint),
+                ("yhot", ctypes.c_uint),
+                ("delay", ctypes.c_uint),
+                ("pixels", ctypes.POINTER(ctypes.c_uint32)),
+            ]
+        self.xcursor.XcursorImageCreate.argtypes = [ctypes.c_int, ctypes.c_int]
+        self.xcursor.XcursorImageCreate.restype = ctypes.POINTER(XcursorImage)
+        self.xcursor.XcursorImageLoadCursor.argtypes = [ctypes.c_void_p, ctypes.POINTER(XcursorImage)]
+        self.xcursor.XcursorImageLoadCursor.restype = ctypes.c_ulong
+        self.xcursor.XcursorImageDestroy.argtypes = [ctypes.POINTER(XcursorImage)]
+        self.x11.XFreeCursor.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+        self.xi.XIDefineCursor.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong]
+        self.xi.XIDefineCursor.restype = ctypes.c_int
+        self.xi.XIUndefineCursor.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ulong]
+        self.xi.XIUndefineCursor.restype = ctypes.c_int
+
+        image = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        points = [(2, 1), (2, 25), (8, 19), (13, 29), (17, 27), (12, 17), (22, 17)]
+        draw.polygon(points, fill=(245, 249, 255, 255), outline=(20, 125, 255, 255), width=2)
+        # A dark outer edge keeps the bright blue outline visible on pale windows.
+        draw.line(points + [points[0]], fill=(8, 42, 92, 255), width=1)
+        cursor_image = self.xcursor.XcursorImageCreate(32, 32)
+        if not cursor_image:
+            raise RuntimeError("Could not create the blue cursor image.")
+        cursor_image.contents.size = 32
+        cursor_image.contents.xhot = 2
+        cursor_image.contents.yhot = 1
+        pixels = cursor_image.contents.pixels
+        for y in range(32):
+            for x in range(32):
+                red, green, blue, alpha = image.getpixel((x, y))
+                pixels[y * 32 + x] = (alpha << 24) | (red << 16) | (green << 8) | blue
+        self.blue_cursor = self.xcursor.XcursorImageLoadCursor(self.display, cursor_image)
+        self.xcursor.XcursorImageDestroy(cursor_image)
+        if not self.blue_cursor:
+            raise RuntimeError("Could not load the blue cursor into X11.")
+        root = self.x11.XDefaultRootWindow(self.display)
+        status = self.xi.XIDefineCursor(self.display, self.master_pointer_id, root, self.blue_cursor)
+        self.x11.XSync(self.display, 0)
+        if status != 0:
+            self.x11.XFreeCursor(self.display, self.blue_cursor)
+            self.blue_cursor = None
+            raise RuntimeError("Could not assign the blue cursor to the DesktopAI pointer.")
 
     def move(self, x, y):
         self.cancel_motion = False
@@ -157,6 +213,11 @@ class DesktopCursor:
         if not getattr(self, "display", None):
             return
         self.release_all()
+        if getattr(self, "blue_cursor", None):
+            root = self.x11.XDefaultRootWindow(self.display)
+            self.xi.XIUndefineCursor(self.display, self.master_pointer_id, root)
+            self.x11.XFreeCursor(self.display, self.blue_cursor)
+            self.blue_cursor = None
         if getattr(self, "device", None):
             self.xi.XCloseDevice(self.display, self.device)
             self.device = None
