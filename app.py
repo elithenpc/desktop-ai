@@ -303,10 +303,92 @@ def agent_loop():
 HTML = """<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Desktop AI</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#101114;color:#eee}*{box-sizing:border-box}body{margin:0;display:flex;justify-content:center;min-height:100vh}.app{width:min(900px,100%);display:flex;flex-direction:column;height:100vh;padding:22px}.top{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #303139;padding-bottom:16px}.brand{font-size:21px;font-weight:700}.status{font-size:12px;color:#a5a5b0}.feed{flex:1;overflow:auto;padding:22px 0}.msg{white-space:pre-wrap;line-height:1.5;padding:13px 16px;border-radius:13px;margin:10px 0;max-width:85%;overflow-wrap:anywhere}.user{background:#29354b;margin-left:auto}.assistant{background:#202126}.error{background:#4a2226;color:#ffd9dc}.action,.statusline{font-size:12px;color:#a7a7b3;padding:5px 10px}.composer{display:flex;gap:10px;border-top:1px solid #303139;padding-top:16px}.composer textarea{flex:1;resize:none;min-height:54px;max-height:160px;background:#202126;color:white;border:1px solid #41424c;border-radius:12px;padding:15px;font:inherit}.btn{border:0;border-radius:11px;padding:0 18px;font-weight:650;cursor:pointer;background:#e8e8ed;color:#17171a}.stop{background:#672b31;color:white}.hint{font-size:11px;color:#81818c;margin-top:9px}
+.msg.assistant{white-space:normal}
+.msg.assistant p{margin:0 0 10px}.msg.assistant p:last-child{margin-bottom:0}
+.msg.assistant h1,.msg.assistant h2,.msg.assistant h3,.msg.assistant h4{line-height:1.25;margin:14px 0 8px}
+.msg.assistant h1{font-size:1.45em}.msg.assistant h2{font-size:1.25em}.msg.assistant h3{font-size:1.1em}
+.msg.assistant ul,.msg.assistant ol{padding-left:24px;margin:8px 0}
+.msg.assistant li{margin:4px 0}
+.msg.assistant blockquote{border-left:3px solid #438cff;margin:10px 0;padding:4px 12px;color:#c7cad3}
+.msg.assistant pre{white-space:pre;overflow-x:auto;background:#111319;border:1px solid #363944;border-radius:8px;padding:12px;margin:10px 0}
+.msg.assistant code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#111319;border-radius:4px;padding:2px 5px;font-size:.92em}
+.msg.assistant pre code{padding:0;background:transparent}
+.msg.assistant a{color:#76adff;text-decoration:underline}
+.msg.assistant hr{border:0;border-top:1px solid #484b56;margin:14px 0}
 </style></head><body><main class=app><header class=top><div class=brand>Desktop AI</div><div id=status class=status>Connecting…</div></header><section id=feed class=feed><div class="msg assistant">Ready. Tell me what you'd like me to do on your desktop.</div></section><form id=form class=composer><textarea id=input placeholder="Give Desktop AI a task. You can add instructions while it works…" autofocus></textarea><button class=btn type=submit>Send</button><button class="btn stop" id=stop type=button>Stop</button></form><div class=hint>Runs locally on this computer. Keep this page open while the agent works.</div></main>
 <script>
 const feed=document.getElementById('feed'),statusEl=document.getElementById('status');let last=0;
-let liveAssistant=null;function add(type,data){const el=document.createElement('div');if(type==='assistant_delta'){if(!liveAssistant){liveAssistant=document.createElement('div');liveAssistant.className='msg assistant';feed.append(liveAssistant)}liveAssistant.textContent+=data;feed.scrollTop=feed.scrollHeight;return}if(type==='assistant_end'){liveAssistant=null;return}if(type==='status'){statusEl.textContent=data;return}if(type==='action'){el.className='action';el.textContent='Action: '+data.name;feed.append(el)}else{el.className='msg '+(type==='error'?'error':type);el.textContent=typeof data==='string'?data:JSON.stringify(data);feed.append(el)}feed.scrollTop=feed.scrollHeight}
+function appendInline(parent,text){
+ const token=/\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|~~([\s\S]+?)~~|\*([^*\n]+)\*|_([^_\n]+)_|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g;
+ let at=0,m;
+ while((m=token.exec(text))){
+  if(m.index>at)parent.append(document.createTextNode(text.slice(at,m.index)));
+  let node;
+  if(m[1]||m[2]){node=document.createElement('strong');node.textContent=m[1]||m[2]}
+  else if(m[3]){node=document.createElement('del');node.textContent=m[3]}
+  else if(m[4]||m[5]){node=document.createElement('em');node.textContent=m[4]||m[5]}
+  else if(m[6]){node=document.createElement('code');node.textContent=m[6]}
+  else{node=document.createElement('a');node.textContent=m[7];node.href=m[8];node.target='_blank';node.rel='noopener noreferrer'}
+  parent.append(node);at=token.lastIndex;
+ }
+ if(at<text.length)parent.append(document.createTextNode(text.slice(at)));
+}
+function renderMarkdown(container,source){
+ container.replaceChildren();
+ const lines=String(source||'').replace(/\r\n?/g,'\n').split('\n');
+ let i=0;
+ while(i<lines.length){
+  const line=lines[i];
+  if(!line.trim()){i++;continue}
+  if(/^\s*```/.test(line)){
+   const lang=line.trim().slice(3).trim();i++;const code=[];
+   while(i<lines.length&&!/^\s*```/.test(lines[i]))code.push(lines[i++]);
+   if(i<lines.length)i++;
+   const pre=document.createElement('pre'),el=document.createElement('code');
+   if(lang)el.dataset.language=lang;
+   el.textContent=code.join('\n');pre.append(el);container.append(pre);continue;
+  }
+  const heading=line.match(/^\s{0,3}(#{1,6})\s+(.+)$/);
+  if(heading){const h=document.createElement('h'+heading[1].length);appendInline(h,heading[2].replace(/\s+#+\s*$/,''));container.append(h);i++;continue}
+  if(/^\s{0,3}([-*_])\s*\1\s*\1\s*$/.test(line)){container.append(document.createElement('hr'));i++;continue}
+  if(/^\s*>/.test(line)){
+   const quote=document.createElement('blockquote');
+   while(i<lines.length&&/^\s*>/.test(lines[i])){const p=document.createElement('p');appendInline(p,lines[i++].replace(/^\s*>\s?/,''));quote.append(p)}
+   container.append(quote);continue;
+  }
+  const listMatch=line.match(/^\s*(?:([-+*])|(\d+)\.)\s+(.+)$/);
+  if(listMatch){
+   const ordered=!!listMatch[2],list=document.createElement(ordered?'ol':'ul');
+   while(i<lines.length){
+    const m=lines[i].match(/^\s*(?:([-+*])|(\d+)\.)\s+(.+)$/);
+    if(!m||!!m[2]!==ordered)break;
+    const li=document.createElement('li');appendInline(li,m[3]);list.append(li);i++;
+   }
+   container.append(list);continue;
+  }
+  const para=[];
+  while(i<lines.length&&lines[i].trim()&&!/^\s*```/.test(lines[i])&&!/^\s{0,3}#{1,6}\s/.test(lines[i])&&!/^\s*>/.test(lines[i])&&!/^\s*(?:[-+*]|\d+\.)\s+/.test(lines[i]))para.push(lines[i++]);
+  const p=document.createElement('p');
+  para.forEach((part,index)=>{if(index)p.append(document.createElement('br'));appendInline(p,part)});
+  container.append(p);
+ }
+}
+let liveAssistant=null;
+function add(type,data){
+ const el=document.createElement('div');
+ if(type==='assistant_delta'){
+  if(!liveAssistant){liveAssistant=document.createElement('div');liveAssistant.className='msg assistant';feed.append(liveAssistant)}
+  liveAssistant.textContent+=data;feed.scrollTop=feed.scrollHeight;return;
+ }
+ if(type==='assistant_end'){
+  if(liveAssistant)renderMarkdown(liveAssistant,data);
+  liveAssistant=null;feed.scrollTop=feed.scrollHeight;return;
+ }
+ if(type==='status'){statusEl.textContent=data;return}
+ if(type==='action'){el.className='action';el.textContent='Action: '+data.name;feed.append(el)}
+ else{el.className='msg '+(type==='error'?'error':type);el.textContent=typeof data==='string'?data:JSON.stringify(data);feed.append(el)}
+ feed.scrollTop=feed.scrollHeight;
+}
 async function poll(){try{const r=await fetch('/events?after='+last);const j=await r.json();for(const e of j.events){last=e.id;add(e.type,e.data)}}catch(e){}setTimeout(poll,350)}poll();
 document.getElementById('form').addEventListener('submit',async e=>{e.preventDefault();const t=document.getElementById('input');if(!t.value.trim())return;await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t.value})});t.value='';t.focus()});
 document.getElementById('stop').onclick=()=>fetch('/stop',{method:'POST'});
