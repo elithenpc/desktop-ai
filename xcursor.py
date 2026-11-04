@@ -58,15 +58,39 @@ class DesktopCursor:
                 self.xi.XCloseDevice(self.display, self.keyboard)
             subprocess.run(["xinput", "remove-master", str(self.master_pointer_id), "Floating"], capture_output=True)
             raise RuntimeError("Could not open the Desktop AI XTEST slave devices.")
+        self.cancel_motion = False
         self.buttons = set()
         self.keys = set()
         self.x11.XSync(self.display, 0)
 
     def move(self, x, y):
+        self.cancel_motion = False
         axes = (ctypes.c_int * 2)(int(x), int(y))
         if not self.xtst.XTestFakeDeviceMotionEvent(self.display, self.device, 0, 0, axes, 2, 0):
             raise RuntimeError("XTest pointer movement failed.")
         self.x11.XFlush(self.display)
+
+    def move_smooth(self, x, y):
+        import math
+        x=int(x); y=int(y)
+        self.x11.XDefaultRootWindow.argtypes=[ctypes.c_void_p]
+        self.x11.XDefaultRootWindow.restype=ctypes.c_ulong
+        self.x11.XQueryPointer.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_uint)]
+        self.x11.XQueryPointer.restype=ctypes.c_int
+        root=self.x11.XDefaultRootWindow(self.display)
+        rr=ctypes.c_ulong(); child=ctypes.c_ulong()
+        rx=ctypes.c_int(); ry=ctypes.c_int(); wx=ctypes.c_int(); wy=ctypes.c_int(); mask=ctypes.c_uint()
+        if not self.x11.XQueryPointer(self.display,root,ctypes.byref(rr),ctypes.byref(child),ctypes.byref(rx),ctypes.byref(ry),ctypes.byref(wx),ctypes.byref(wy),ctypes.byref(mask)):
+            self.move(x,y); return
+        sx,sy=wx.value,wy.value
+        distance=math.hypot(x-sx,y-sy)
+        steps=max(3,min(36,int(distance/35)))
+        duration=min(0.42,max(0.07,distance/2800.0))
+        for i in range(1,steps+1):
+            t=i/steps
+            eased=1-(1-t)**3
+            self.move(round(sx+(x-sx)*eased),round(sy+(y-sy)*eased))
+            if i<steps: time.sleep(duration/steps)
 
     def _button(self, number, down):
         self.xtst.XTestFakeDeviceButtonEvent(self.display, self.device, number, int(down), None, 0, 0)
