@@ -76,10 +76,10 @@ class DesktopCursor:
             codes.append(code)
         for code in codes[:-1]:
             self.xtst.XTestFakeDeviceKeyEvent(self.display,self.keyboard,code,1,None,0,0); self.keys.add(code)
-        self.xtst.XTestFakeDeviceKeyEvent(self.display,self.device,codes[-1],1,None,0,0)
+        self.xtst.XTestFakeDeviceKeyEvent(self.display,self.keyboard,codes[-1],1,None,0,0)
         self.xtst.XTestFakeDeviceKeyEvent(self.display,self.device,codes[-1],0,None,0,0)
         for code in reversed(codes[:-1]):
-            self.xtst.XTestFakeDeviceKeyEvent(self.display,self.device,code,0,None,0,0); self.keys.discard(code)
+            self.xtst.XTestFakeDeviceKeyEvent(self.display,self.keyboard,code,0,None,0,0); self.keys.discard(code)
         self.x11.XFlush(self.display)
 
     def scroll(self,x,y,amount):
