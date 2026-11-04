@@ -34,8 +34,12 @@ class DesktopCursor:
             match=re.search(re.escape(self.name)+r" pointer\s+id=(\d+)",listing)
         if not match: raise RuntimeError("Created XInput master but could not find its pointer ID.")
         self.pointer_id=int(match.group(1))
+        kmatch=re.search(re.escape(self.name)+r" keyboard\s+id=(\d+)",listing)
+        if not kmatch: raise RuntimeError("Could not find the independent XInput master keyboard.")
+        self.keyboard_id=int(kmatch.group(1))
         self.device=self.xi.XOpenDevice(self.display,self.pointer_id)
-        if not self.device: raise RuntimeError("Could not open the independent XInput master pointer.")
+        self.keyboard=self.xi.XOpenDevice(self.display,self.keyboard_id)
+        if not self.device or not self.keyboard: raise RuntimeError("Could not open the independent XInput master devices.")
         self.keysym_device=self.x11.XDefaultRootWindow(self.display)
         self.buttons=set(); self.keys=set()
         self.x11.XSync(self.display,0)
@@ -71,7 +75,7 @@ class DesktopCursor:
             if not code: raise ValueError("Unavailable key: "+part)
             codes.append(code)
         for code in codes[:-1]:
-            self.xtst.XTestFakeDeviceKeyEvent(self.display,self.device,code,1,None,0,0); self.keys.add(code)
+            self.xtst.XTestFakeDeviceKeyEvent(self.display,self.keyboard,code,1,None,0,0); self.keys.add(code)
         self.xtst.XTestFakeDeviceKeyEvent(self.display,self.device,codes[-1],1,None,0,0)
         self.xtst.XTestFakeDeviceKeyEvent(self.display,self.device,codes[-1],0,None,0,0)
         for code in reversed(codes[:-1]):
@@ -94,5 +98,6 @@ class DesktopCursor:
     def close(self):
         self.release_all()
         self.xi.XCloseDevice(self.display,self.device)
+        self.xi.XCloseDevice(self.display,self.keyboard)
         subprocess.run(["xinput","remove-master",str(self.pointer_id),"Floating"],capture_output=True)
         self.x11.XCloseDisplay(self.display)
